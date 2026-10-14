@@ -10,14 +10,18 @@ canvas.width = window_width;
 
 canvas.style.background = "#ff8";
 
+const COLLISION_COLOR = "#0000FF";
+
 class Circle {
   constructor(x, y, radius, color, text, speed) {
     this.posX = x;
     this.posY = y;
     this.radius = radius;
     this.color = color;
+    this.originalColor = color;
     this.text = text;
     this.speed = speed;
+    this.colliding = false;
 
     this.dx = 1 * this.speed;
     this.dy = 1 * this.speed;
@@ -30,6 +34,7 @@ class Circle {
     context.textAlign = "center";
     context.textBaseline = "middle";
     context.font = "20px Arial";
+    context.fillStyle = this.color;
     context.fillText(this.text, this.posX, this.posY);
 
     context.lineWidth = 2;
@@ -38,50 +43,83 @@ class Circle {
     context.closePath();
   }
 
-  update(context) {
-    this.draw(context);
-
+  move() {
     // Actualizar la posición X
     this.posX += this.dx;
-    // Cambiar la dirección si el círculo llega al borde del canvas en X
     if (this.posX + this.radius > window_width || this.posX - this.radius < 0) {
       this.dx = -this.dx;
     }
 
     // Actualizar la posición Y
     this.posY += this.dy;
-    // Cambiar la dirección si el círculo llega al borde del canvas en Y
     if (this.posY + this.radius > window_height || this.posY - this.radius < 0) {
       this.dy = -this.dy;
     }
   }
-}
 
-// Crear un array para almacenar N círculos
-let circles = [];
+  // Distancia entre centros (inciso A del Contexto)
+  distanceTo(other) {
+    return Math.sqrt(
+      Math.pow(other.posX - this.posX, 2) + Math.pow(other.posY - this.posY, 2)
+    );
+  }
 
-// Función para generar círculos aleatorios
-function generateCircles(n) {
-  for (let i = 0; i < n; i++) {
-    let radius = Math.random() * 30 + 20; // Radio entre 20 y 50
-    let x = Math.random() * (window_width - radius * 2) + radius;
-    let y = Math.random() * (window_height - radius * 2) + radius;
-    let color = `#${Math.floor(Math.random()*16777215).toString(16)}`; // Color aleatorio
-    let speed = Math.random() * 2 + 1; // Velocidad entre 1 y 3
-    let text = `C${i + 1}`; // Etiqueta del círculo
-    circles.push(new Circle(x, y, radius, color, text, speed));
+  setColliding(state) {
+    this.colliding = state;
+    this.color = state ? COLLISION_COLOR : this.originalColor;
+  }
+
+  update(context) {
+    this.move();
+    this.draw(context);
   }
 }
 
-// Función para animar los círculos
-function animate() {
-  ctx.clearRect(0, 0, window_width, window_height); // Limpiar el canvas
-  circles.forEach(circle => {
-    circle.update(ctx); // Actualizar cada círculo
-  });
-  requestAnimationFrame(animate); // Repetir la animación
+class Simulation {
+  constructor(n) {
+    this.circles = [];
+    this.generateCircles(n);
+  }
+
+  generateCircles(n) {
+    for (let i = 0; i < n; i++) {
+      let radius = Math.random() * 30 + 20; // Radio entre 20 y 50
+      let x = Math.random() * (window_width - radius * 2) + radius;
+      let y = Math.random() * (window_height - radius * 2) + radius;
+      let color = `#${Math.floor(Math.random() * 16777215).toString(16)}`;
+      let speed = Math.random() * 4 + 1; // Velocidad entre 1 y 5
+      let text = `C${i + 1}`;
+      this.circles.push(new Circle(x, y, radius, color, text, speed));
+    }
+  }
+
+  // Colisión colectiva (inciso B del Contexto)
+  detectCollisions() {
+    for (let i = 0; i < this.circles.length; i++) {
+      this.circles[i].setColliding(false);
+    }
+
+    for (let i = 0; i < this.circles.length; i++) {
+      for (let j = i + 1; j < this.circles.length; j++) {
+        const a = this.circles[i];
+        const b = this.circles[j];
+        const distance = a.distanceTo(b);
+
+        if (distance < a.radius + b.radius) {
+          a.setColliding(true);
+          b.setColliding(true);
+        }
+      }
+    }
+  }
+
+  animate() {
+    ctx.clearRect(0, 0, window_width, window_height);
+    this.detectCollisions();
+    this.circles.forEach(circle => circle.update(ctx));
+    requestAnimationFrame(() => this.animate());
+  }
 }
 
-// Generar N círculos y comenzar la animación
-generateCircles(5); // Puedes cambiar el número de círculos aquí
-animate();
+const simulation = new Simulation(20);
+simulation.animate(); 
