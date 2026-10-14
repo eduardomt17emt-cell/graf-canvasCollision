@@ -11,6 +11,7 @@ canvas.width = window_width;
 canvas.style.background = "#ff8";
 
 const COLLISION_COLOR = "#0000FF";
+const FLASH_DURATION = 15; // frames que dura el destello azul
 
 class Circle {
   constructor(x, y, radius, color, text, speed) {
@@ -21,7 +22,7 @@ class Circle {
     this.originalColor = color;
     this.text = text;
     this.speed = speed;
-    this.colliding = false;
+    this.flashTimer = 0;
 
     this.dx = 1 * this.speed;
     this.dy = 1 * this.speed;
@@ -64,13 +65,30 @@ class Circle {
     );
   }
 
-  setColliding(state) {
-    this.colliding = state;
-    this.color = state ? COLLISION_COLOR : this.originalColor;
+  // Cambia de dirección al colisionar (inciso C del Contexto)
+  bounce() {
+    this.dx = -this.dx;
+    this.dy = -this.dy;
+  }
+
+  // Destello azul temporal al colisionar
+  triggerFlash() {
+    this.flashTimer = FLASH_DURATION;
+    this.color = COLLISION_COLOR;
+  }
+
+  updateFlash() {
+    if (this.flashTimer > 0) {
+      this.flashTimer--;
+      if (this.flashTimer === 0) {
+        this.color = this.originalColor;
+      }
+    }
   }
 
   update(context) {
     this.move();
+    this.updateFlash();
     this.draw(context);
   }
 }
@@ -78,6 +96,7 @@ class Circle {
 class Simulation {
   constructor(n) {
     this.circles = [];
+    this.previousCollisions = new Set();
     this.generateCircles(n);
   }
 
@@ -93,11 +112,9 @@ class Simulation {
     }
   }
 
-  // Colisión colectiva (inciso B del Contexto)
+  // Colisión colectiva (inciso B) + cambio de dirección (inciso C)
   detectCollisions() {
-    for (let i = 0; i < this.circles.length; i++) {
-      this.circles[i].setColliding(false);
-    }
+    const currentCollisions = new Set();
 
     for (let i = 0; i < this.circles.length; i++) {
       for (let j = i + 1; j < this.circles.length; j++) {
@@ -106,11 +123,21 @@ class Simulation {
         const distance = a.distanceTo(b);
 
         if (distance < a.radius + b.radius) {
-          a.setColliding(true);
-          b.setColliding(true);
+          const key = `${i}-${j}`;
+          currentCollisions.add(key);
+
+          // Solo rebota al iniciar el contacto, no en cada frame que siguen encimados
+          if (!this.previousCollisions.has(key)) {
+            a.bounce();
+            b.bounce();
+            a.triggerFlash();
+            b.triggerFlash();
+          }
         }
       }
     }
+
+    this.previousCollisions = currentCollisions;
   }
 
   animate() {
@@ -122,4 +149,4 @@ class Simulation {
 }
 
 const simulation = new Simulation(20);
-simulation.animate(); 
+simulation.animate();
